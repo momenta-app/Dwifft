@@ -7,7 +7,6 @@
 //
 
 fileprivate extension Array where Element: Equatable {
-    
     // Remove first collection element that is equal to the given `object`:
     mutating func remove(_ object: Element) {
         if let index = index(of: object) {
@@ -25,6 +24,7 @@ public struct Diff<T> where T:Equatable, T:Hashable {
         return results.filter({ !$0.isInsertion }).sorted { $0.idx > $1.idx }
     }
     
+    /// Get the three types of operations in order to convert one array into another. This is an alternative, more costly, but more detailed variant of just using insertions and deletions.
     public var operations: (moves: [DiffStep<T>], insertions: [DiffStep<T>], deletions: [DiffStep<T>]){
         var insertions = self.insertions
         var deletions = self.deletions
