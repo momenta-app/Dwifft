@@ -6,7 +6,17 @@
 //  Copyright (c) 2015 jflinter. All rights reserved.
 //
 
-public struct Diff<T> {
+fileprivate extension Array where Element: Equatable {
+    
+    // Remove first collection element that is equal to the given `object`:
+    mutating func remove(_ object: Element) {
+        if let index = index(of: object) {
+            self.remove(at: index)
+        }
+    }
+}
+
+public struct Diff<T> where T:Equatable, T:Hashable {
     public let results: [DiffStep<T>]
     public var insertions: [DiffStep<T>] {
         return results.filter({ $0.isInsertion }).sorted { $0.idx < $1.idx }
@@ -14,6 +24,36 @@ public struct Diff<T> {
     public var deletions: [DiffStep<T>] {
         return results.filter({ !$0.isInsertion }).sorted { $0.idx > $1.idx }
     }
+    
+    public var operations: (moves: [DiffStep<T>], insertions: [DiffStep<T>], deletions: [DiffStep<T>]){
+        var insertions = self.insertions
+        var deletions = self.deletions
+        var moves = [DiffStep<T>]()
+        
+        var insertionsByType = Dictionary<T, DiffStep<T>>()
+        for insertion in insertions {
+            insertionsByType[insertion.value] = insertion
+        }
+        
+        var deletionsToRemove = [DiffStep<T>]()
+        for deletion in deletions {
+            if let insertion = insertionsByType[deletion.value] {
+                moves.append(DiffStep.move(from: deletion.idx, to: insertion.idx, insertion.value))
+                insertionsByType.removeValue(forKey: insertion.value)
+                insertions.remove(insertion)
+                deletionsToRemove.append(deletion)
+            }
+        }
+        
+        for deletionToRemove in deletionsToRemove {
+            deletions.remove(deletionToRemove)
+        }
+        
+        moves = moves.sorted(by: { $0.idx < $1.idx })
+        
+        return (moves: moves, insertions: insertions, deletions: deletions)
+    }
+    
     public func reversed() -> Diff<T> {
         let reversedResults = self.results.reversed().map { (result: DiffStep<T>) -> DiffStep<T> in
             switch result {
@@ -21,6 +61,8 @@ public struct Diff<T> {
                 return .delete(i, j)
             case .delete(let i, let j):
                 return .insert(i, j)
+            case .move(let from, let to, let j):
+                return .move(from: to, to: from, j)
             }
         }
         return Diff<T>(results: reversedResults)
@@ -32,14 +74,17 @@ public func +<T> (left: Diff<T>, right: DiffStep<T>) -> Diff<T> {
 }
 
 /// These get returned from calls to Array.diff(). They represent insertions or deletions that need to happen to transform array a into array b.
-public enum DiffStep<T> : CustomDebugStringConvertible {
+public enum DiffStep<T> : CustomDebugStringConvertible, Equatable where T:Equatable, T:Hashable{
     case insert(Int, T)
     case delete(Int, T)
+    case move(from: Int, to: Int, T)
     var isInsertion: Bool {
         switch(self) {
         case .insert:
             return true
         case .delete:
+            return false
+        case .move:
             return false
         }
     }
@@ -49,6 +94,8 @@ public enum DiffStep<T> : CustomDebugStringConvertible {
             return "+\(j)@\(i)"
         case .delete(let i, let j):
             return "-\(j)@\(i)"
+        case .move(let from, let to, let j):
+            return "-\(j)@\(from)+\(j)@\(to)"
         }
     }
     public var idx: Int {
@@ -57,6 +104,8 @@ public enum DiffStep<T> : CustomDebugStringConvertible {
             return i
         case .delete(let i, _):
             return i
+        case .move(_, let to, _):
+            return to
         }
     }
     public var value: T {
@@ -65,11 +114,36 @@ public enum DiffStep<T> : CustomDebugStringConvertible {
             return j.1
         case .delete(let j):
             return j.1
+        case .move(let j):
+            return j.2
+        }
+    }
+    
+    public var from: Int {
+        switch(self) {
+        case .insert, .delete:
+            return idx
+        case .move(let from, _, _):
+            return from
+        }
+    }
+    
+    public var to: Int {
+        switch(self) {
+        case .insert, .delete:
+            return idx
+        case .move(_, let to, _):
+            return to
         }
     }
 }
 
-public extension Array where Element: Equatable {
+
+public func ==<T> (left : DiffStep<T>, right : DiffStep<T>) -> Bool {
+    return left.idx == right.idx //&& left.value == right.value
+}
+
+public extension Array where Element: Equatable, Element: Hashable {
     
     /// Returns the sequence of ArrayDiffResults required to transform one array into another.
     public func diff(_ other: [Element]) -> Diff<Element> {

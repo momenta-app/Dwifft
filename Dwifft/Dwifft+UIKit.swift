@@ -10,7 +10,7 @@
 
 import UIKit
 
-open class TableViewDiffCalculator<T: Equatable> {
+open class TableViewDiffCalculator<T> where T:Equatable, T:Hashable {
     
     open weak var tableView: UITableView?
     
@@ -38,9 +38,17 @@ open class TableViewDiffCalculator<T: Equatable> {
             if (diff.results.count > 0) {
                 tableView?.beginUpdates()
                 self._rows = newValue
-                let insertionIndexPaths = diff.insertions.map({ IndexPath(row: $0.idx, section: self.sectionIndex) })
-                let deletionIndexPaths = diff.deletions.map({ IndexPath(row: $0.idx, section: self.sectionIndex) })
+                
+                let operations = diff.operations
+                let insertionIndexPaths = operations.insertions.map({ IndexPath(row: $0.idx, section: self.sectionIndex) })
+                let deletionIndexPaths = operations.deletions.map({ IndexPath(row: $0.idx, section: self.sectionIndex) })
 
+                for move in operations.moves {
+                    let fromIndexPath = IndexPath(row: move.from, section: self.sectionIndex)
+                    let toIndexPath = IndexPath(row: move.to, section: self.sectionIndex)
+                    tableView?.moveRow(at: fromIndexPath, to: toIndexPath)
+                }
+                
                 tableView?.insertRows(at: insertionIndexPaths, with: insertionAnimation)
                 tableView?.deleteRows(at: deletionIndexPaths, with: deletionAnimation)
                 tableView?.endUpdates()
@@ -50,7 +58,7 @@ open class TableViewDiffCalculator<T: Equatable> {
     
 }
     
-open class CollectionViewDiffCalculator<T: Equatable> {
+open class CollectionViewDiffCalculator<T> where T:Equatable, T:Hashable {
     
     open weak var collectionView: UICollectionView?
     
@@ -78,9 +86,16 @@ open class CollectionViewDiffCalculator<T: Equatable> {
                 collectionView?.performBatchUpdates({ () -> Void in
                     self._rows = newValue
 
-                    let insertionIndexPaths = diff.insertions.map({ IndexPath(item: $0.idx, section: self.sectionIndex) })
-                    let deletionIndexPaths = diff.deletions.map({ IndexPath(item: $0.idx, section: self.sectionIndex) })
-
+                    let operations = diff.operations
+                    let insertionIndexPaths = operations.insertions.map({ IndexPath(row: $0.idx, section: self.sectionIndex) })
+                    let deletionIndexPaths = operations.deletions.map({ IndexPath(row: $0.idx, section: self.sectionIndex) })
+                    
+                    for move in operations.moves {
+                        let fromIndexPath = IndexPath(row: move.from, section: self.sectionIndex)
+                        let toIndexPath = IndexPath(row: move.to, section: self.sectionIndex)
+                        self.collectionView?.moveItem(at: fromIndexPath, to: toIndexPath)
+                    }
+                
                     self.collectionView?.insertItems(at: insertionIndexPaths)
                     self.collectionView?.deleteItems(at: deletionIndexPaths)
                 }, completion: nil)
