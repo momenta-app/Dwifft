@@ -8,7 +8,7 @@
 
 fileprivate extension Array where Element: Equatable {
     // Remove first collection element that is equal to the given `object`:
-    mutating func remove(_ object: Element) {
+    mutating func _remove(_ object: Element) {
         if let index = index(of: object) {
             self.remove(at: index)
         }
@@ -40,13 +40,13 @@ public struct Diff<T> where T:Equatable, T:Hashable {
             if let insertion = insertionsByType[deletion.value] {
                 moves.append(DiffStep.move(from: deletion.idx, to: insertion.idx, insertion.value))
                 insertionsByType.removeValue(forKey: insertion.value)
-                insertions.remove(insertion)
+                insertions._remove(insertion)
                 deletionsToRemove.append(deletion)
             }
         }
         
         for deletionToRemove in deletionsToRemove {
-            deletions.remove(deletionToRemove)
+            deletions._remove(deletionToRemove)
         }
         
         moves = moves.sorted(by: { $0.idx < $1.idx })
@@ -140,7 +140,7 @@ public enum DiffStep<T> : CustomDebugStringConvertible, Equatable where T:Equata
 
 
 public func ==<T> (left : DiffStep<T>, right : DiffStep<T>) -> Bool {
-    return left.idx == right.idx //&& left.value == right.value
+    return left.idx == right.idx && left.value == right.value
 }
 
 public extension Array where Element: Equatable, Element: Hashable {
